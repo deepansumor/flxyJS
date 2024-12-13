@@ -1,0 +1,11 @@
+{
+    "greeting": "Hello, world!",
+    "error": {
+      "notFound": "Page not found",
+      "serverError": {
+        "yes":"Server error occurred"
+      }
+    },
+    "welcome": "Welcome to the site, _('greeting')"
+  }
+  

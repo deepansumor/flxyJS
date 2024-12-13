@@ -1,0 +1,9 @@
+{
+    "greeting": "Bonjour",
+    "welcome": "Bienvenue sur le site!",
+    "error": {
+      "notFound": "Page non trouvée",
+      "server": "Erreur interne du serveur"
+    }
+  }
+  
