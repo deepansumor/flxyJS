@@ -1,5 +1,5 @@
 {
-    "greeting": "Bonjour",
+    "greeting": "Bonjour {title}",
     "welcome": "Bienvenue sur le site!",
     "error": {
       "notFound": "Page non trouvée",

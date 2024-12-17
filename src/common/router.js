@@ -1,126 +1,132 @@
+import STATES from "../utils/states.js";
+
+
+/**
+ * ErrorHandler is responsible for handling and logging errors throughout the routing system.
+ */
 const ErrorHandler = {
   /**
-   * Handle different types of errors by logging the error code.
-   * @example ErrorHandler.handle(404); // Logs "Error: 404"
-   * @param {number} errorCode - The error code (e.g., 404, 400, 500).
+   * Handles errors by logging the error code and message.
+   * @param {number} errorCode - The HTTP status code for the error.
+   * @param {string} message - A detailed description of the error.
    */
-  handle: (errorCode) => console.log(`Error: ${errorCode}`)
+  handle(errorCode, message) {
+    console.error(`Error ${errorCode}: ${message}`);
+    // Add custom fallback behavior (e.g., redirect to a specific error page)
+  },
 };
 
+/**
+ * Router is a lightweight client-side routing system that manages navigation and route handling.
+ */
 const Router = {
-  currentPath: null,  // Use the current path to identify the base page (e.g., '/home')
-  currentQuery: new URLSearchParams(window.location.search),  // Parse the query parameters (e.g., '?route=home')
-  listeners: [],  // Array to store listeners for route changes
-  history: [],  // Track the history of queries
-  routes: {},  // Store the registered routes (e.g., home, about, 404)
-  routeStates: {},  // Track the state of each route (loading, success, error)
-  middlewares: [],  // Store middleware functions
+  currentPath: null, // The current active route path.
+  currentQuery: new URLSearchParams(window.location.search), // Stores the current query parameters.
+  listeners: [], // Array to store route change listeners.
+  history: [], // Stores the history of navigated routes.
+  routes: {}, // Registered routes and their associated handlers.
+  routeStates: {}, // The current state of each route (e.g., loading, success, error).
+  middlewares: [], // Array of middlewares to execute before handling the route.
 
   /**
-   * Initialize the router by pushing the current query to history
-   * and setting up an event listener for the 'popstate' event.
-   * @example Router.init(); // Initializes the router and listens for changes in the URL.
+   * Initializes the router by setting the current route and listening for browser history changes.
+   * @example Router.init();
    */
   init() {
-    this.currentPath = this.getRouteNameFromQuery();
-    this.history.push({ query: this.getCurrentQuery() });
     window.addEventListener("popstate", () => {
       this.currentQuery = new URLSearchParams(window.location.search);
-      this.handle();  // Re-handle the route whenever the browser history changes
+      this.handle();
     });
   },
 
   /**
-   * Register a new route with its handler and associated middlewares.
+   * Registers a new route with a handler and optional middleware.
+   * @param {string} routeName - The name of the route (e.g., '/home').
+   * @param {function} handler - The function to execute when the route is matched.
+   * @param {Array|function} [middlewares=[]] - Middleware functions to execute before the handler.
    * @example
-   * Router.register('home', (context) => { console.log("Home route", context); }, [middleware1, middleware2]);
-   * Registers the 'home' route with the specified handler and middleware functions.
-   * @param {string} routeName - The name of the route (from query parameter, e.g., 'home').
-   * @param {function} handler - The handler function for the route (e.g., to render a page).
-   * @param {Array} middlewares - Array of middleware functions to execute before the handler.
+   * Router.register('/home', (ctx) => console.log('Home'), [authMiddleware]);
    */
   register(routeName, handler, middlewares = []) {
-    middlewares = typeof middlewares == 'function' ? [middlewares] : middlewares;
+    middlewares = typeof middlewares === "function" ? [middlewares] : middlewares;
 
-    if (!Array.isArray(middlewares) || middlewares.some(middleware => typeof middleware != "function")) {
-      throw new Error(`Middleware should be a function or an empty array for route ${routeName}`);
+    if (!Array.isArray(middlewares) || middlewares.some(mw => typeof mw !== "function")) {
+      throw new Error(`Middleware should be a function or an array of functions for route ${routeName}`);
     }
 
-    if (typeof handler != 'function') {
+    if (typeof handler !== "function") {
       throw new Error(`Handler should be a function for route ${routeName}`);
     }
 
-    this.routes[routeName] = { handler, middlewares };
+    const paramRegex = /:[^/]+/g;
+    const isDynamic = paramRegex.test(routeName);
+
+    this.routes[routeName] = { handler, middlewares, isDynamic };
   },
 
   /**
-   * Handle the query parameters and route logic.
-   * @example
-   * // If URL is /home?route=about, it will execute the handler for the 'about' route.
-   * Router.handle();
-   * Resolves middlewares before executing the route handler.
+   * Handles route changes, including executing middlewares and the route handler.
+   * @example Router.handle();
    */
   async handle() {
-    const routeName = this.getRouteNameFromQuery();  // Extract route name from query (e.g., 'home' or 'about')
-    const route = this.routes[routeName] || this.routes["/404"];  // Default to 404 if no match is found
+    const query = this.getParsedQuery();
+    const routeName = query.routeName;
+    const route = this.routes[routeName] || this.routes["/404"];
     const { handler, middlewares } = route || {};
     this.currentPath = routeName;
 
     if (!handler) {
-      ErrorHandler.handle(404);  // Route not found, handle with 404 error
+      this.error(404);
       return;
     }
 
-    // Set the state of the route to 'loading' as the route is being processed
-    this.setState(routeName, 'loading');
+    this.setState(routeName, STATES.LOADING);
 
     const context = {
       path: this.currentPath,
       query: this.getCurrentQuery(),
-      navigate: this.navigate.bind(this),  // Pass navigate method to middleware
+      params: query.params,  // Parameters extracted from the route.
+      navigate: this.navigate.bind(this),
     };
 
+
     try {
-      // Wait for middlewares to resolve and handle their results
       const middlewareResults = await this.executeMiddlewares(middlewares, context);
 
-      // If any middleware fails (false or throws an error), handle the error
-      if (!middlewareResults.every(result => result)) {
-        ErrorHandler.handle(400); // Bad request if any middleware fails
-        return;
-      }
+      if (!middlewareResults.every(result => result)) return this.error(400);
 
-      // Proceed with the route handler if all middlewares passed
       await this.executeHandler(handler, context);
-      this.setState(routeName, 'success');
+      this.setState(routeName, STATES.SUCCESS);
     } catch (error) {
-      // Handle middleware or route handler errors
       console.error("Error:", error);
-      ErrorHandler.handle(500); // Internal server error if an error occurs during handling
+      this.error(500);
     }
 
-    this.notifyListeners();
+    this.notifyListeners(context);
   },
 
   /**
-   * Execute all middlewares for the current route.
-   * @example
-   * // Example middleware that logs the context before allowing the handler to execute
-   * const logMiddleware = (context) => { console.log("Context:", context); return true; };
-   * await Router.executeMiddlewares([logMiddleware], context);
-   * @param {Array} middlewares - The middlewares to be executed.
-   * @param {Object} context - The current route context that middlewares can modify.
-   * @returns {Promise<boolean[]>} - An array of boolean values indicating if each middleware passed.
+   * Handles errors during route handling and logs them.
+   * @param {number} errorCode - The HTTP status code for the error.
+   */
+  error(errorCode) {
+    ErrorHandler.handle(errorCode, `Route handling failed for ${this.currentPath}`);
+  },
+
+  /**
+   * Executes all middlewares for a given route.
+   * @param {Array} middlewares - The middlewares to execute.
+   * @param {Object} context - The context object passed to each middleware.
+   * @returns {Promise<boolean[]>} - An array of boolean values indicating middleware success.
    */
   async executeMiddlewares(middlewares, context) {
     const results = await Promise.all(
-      middlewares.map(async (middleware) => {
+      middlewares.map(async middleware => {
         try {
-          // Pass the context object to middleware for modification
           return await middleware(context);
         } catch (error) {
           console.error("Middleware error:", error);
-          return false; // If any middleware throws, it fails the route handling
+          return false;
         }
       })
     );
@@ -128,11 +134,10 @@ const Router = {
   },
 
   /**
-   * Set the state of a route (loading, success, error) for tracking.
-   * @example
-   * Router.setState('home', 'loading'); // Marks the 'home' route as loading.
+   * Updates the state of a specific route.
    * @param {string} routeName - The route name.
-   * @param {string} state - The state of the route ('loading', 'success', 'error').
+   * @param {string} state - The current state of the route ('loading', 'success', 'error').
+   * @example Router.setState('/home', 'success');
    */
   setState(routeName, state) {
     this.routeStates[routeName] = state;
@@ -140,47 +145,39 @@ const Router = {
   },
 
   /**
-   * Execute the route handler function.
-   * @example
-   * // Example handler that logs the context
-   * const homeHandler = (context) => { console.log("Home Handler:", context); };
-   * await Router.executeHandler(homeHandler, context);
-   * @param {function} handler - The handler function for the route.
-   * @param {Object} context - The route context passed to the handler.
-   * @returns {Promise} - A promise that resolves when the handler finishes.
+   * Executes the handler function for a route.
+   * @param {function} handler - The handler function to execute.
+   * @param {Object} context - The context passed to the handler.
+   * @example Router.executeHandler((ctx) => console.log(ctx), {});
    */
   async executeHandler(handler, context) {
-    console.log("Loading...");
+    console.log("Loading...", context);
     await handler(context);
   },
 
   /**
-   * Navigate by updating the query parameters (without changing the path).
-   * @example
-   * // Navigate to the 'about' route with a query parameter
-   * Router.navigate('about', { route: 'about' });
-   * @param {string} path - The path to navigate to (e.g., 'home').
-   * @param {object} query - The query parameters.
+   * Navigates to a new route and updates the browser's history.
+   * @param {string} path - The route path to navigate to.
+   * @param {Object} [query={}] - Optional query parameters to append to the URL.
+   * @example Router.navigate('/about', { user: 'john' });
    */
   navigate(path, query = {}) {
     query.route = path;
     const queryString = new URLSearchParams(query).toString();
     const fullUrl = `${window.location.pathname}?${queryString}`;
-    // Only navigate if the query string has changed
+
     if (this.currentQuery.toString() !== queryString) {
       this.currentQuery = new URLSearchParams(query);
-      window.history.pushState({}, "", fullUrl);  // Update history with new query
+      window.history.pushState({}, "", fullUrl);
       this.history.push({ query });
       this.handle();
     }
   },
 
   /**
-   * Subscribe to changes in the route.
-   * @example
-   * // Subscribe to route changes and log them
-   * Router.onChange((route) => { console.log("Route changed:", route); });
-   * @param {function} callback - The callback function to call when the route changes.
+   * Subscribes a callback function to route change events.
+   * @param {function} callback - The callback function to execute when the route changes.
+   * @example Router.onChange((route) => console.log('Route changed:', route));
    */
   onChange(callback) {
     if (typeof callback === "function") {
@@ -189,62 +186,86 @@ const Router = {
   },
 
   /**
-   * Notify all subscribed listeners of a route change.
-   * @example
-   * // Notify all listeners of a route change
-   * Router.notifyListeners();
+   * Notifies all subscribed listeners about the current route context.
    */
-  notifyListeners() {
-    const currentRoute = {
-      path: this.currentPath,
-      query: this.getCurrentQuery(),
-      state: this.routeStates[this.getRouteNameFromQuery()] || 'unknown',
+  notifyListeners(context) {
+    this.listeners.forEach(callback => callback(context));
+  },
+
+  /**
+   * Extracts the route name and parameters from the current query string.
+   * @returns {Object} - The route name, original query, and dynamic parameters.
+   */
+  getParsedQuery() {
+    const queryRoute = this.currentQuery.get("route");
+    const staticRoute = this.routes[queryRoute];
+    const dynamicRoute = !staticRoute ? this.matchDynamicRoute(queryRoute) : staticRoute;
+    return {
+      routeName: staticRoute ? queryRoute : dynamicRoute ? dynamicRoute.routeName : null,
+      queryRoute,
+      params: dynamicRoute?.params
     };
-    this.listeners.forEach((callback) => callback(currentRoute));
   },
 
   /**
-   * Helper function to extract the route name from query parameters.
-   * @example
-   * // Extract 'home' from the query '?route=home'
-   * Router.getRouteNameFromQuery(); // Returns 'home'
-   * @returns {string} - The route name from the query params.
+   * Attempts to match a dynamic route using a regex pattern.
+   * @param {string} routeName - The name of the route to match.
+   * @returns {Object|null} - The matched route or null if no match is found.
    */
-  getRouteNameFromQuery() {
-    return this.currentQuery.get('route') || this.currentPath;  // Default to 'current' if no route is specified
+  matchDynamicRoute(routeName) {
+    console.log(routeName)
+    for (const [key, value] of Object.entries(this.routes)) {
+      if (value.isDynamic && routeName) {
+        const regex = new RegExp(`^${key.replace(/:[^/]+/g, "([^/]+)")}$`);
+        const match = routeName.match(regex);
+
+        if (match) {
+          const params = {};
+          const dynamicKeys = key.match(/:([^/]+)/g).map(segment => segment.substring(1));
+
+          dynamicKeys.forEach((key, index) => {
+            params[key] = match[index + 1];
+          });
+
+          return { ...value, params, routeName: key };
+        }
+      }
+    }
+    return null;
   },
 
   /**
-   * Refresh the current route with the provided query parameters or with the current query.
-   * If no parameters are provided, it will refresh with the current parameters only.
-   * @example
-   * // Refresh with the current query
-   * Router.refresh();
-   * // Refresh with new query parameters
-   * Router.refresh({ route: 'about' });
-   * @param {object} [newParams] - Optional new query parameters to update and refresh the route.
+   * Refreshes the current route with updated query parameters.
+   * @param {Object} [newParams] - Optional query parameters to update the route with.
+   * @example Router.refresh({ foo: 'bar' });
    */
   refresh(newParams = this.getCurrentQuery()) {
-    newParams.route = this.currentPath;
-    const queryString = new URLSearchParams(newParams).toString();
-    const fullUrl = `${window.location.pathname}?${queryString}`;
-    // Only navigate if the query string has changed
-    if (this.currentQuery.toString() !== queryString) {
-      this.currentQuery = new URLSearchParams(newParams);
-      window.history.pushState({}, "", fullUrl);  // Update history with new query
-      this.history.push({ query: newParams });
-      this.handle();  // Re-run the route handling process with the updated parameters
+    if (newParams.route) {
+      console.warn(`Please use navigate to move to a new route`);
     }
+    newParams.route = this.currentPath;
+    this.navigate(this.currentPath, newParams);
   },
-  
+
+  /**
+   * Returns the current query parameters as an object.
+   * @returns {Object} - The current query parameters.
+   */
   getCurrentQuery() {
     return Object.fromEntries(this.currentQuery);
   },
 
+  /**
+   * Retrieves the entire navigation history.
+   * @returns {Array} - A copy of the navigation history.
+   */
   getHistory() {
     return [...this.history];
   },
 
+  /**
+   * Clears all route change listeners.
+   */
   clearListeners() {
     this.listeners = [];
   },

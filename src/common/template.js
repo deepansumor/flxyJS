@@ -1,15 +1,17 @@
 import Handlebars from "https://cdn.jsdelivr.net/npm/handlebars@4.7.8/+esm";
+import STATES from "../utils/states.js";
 import Translator from "./translator.js";
 
 
 
 // Configuration object
 const Template = {
-    prefix: window.location.origin, // Base URL for templates
+    prefix: `${window.location.origin}/templates`, // Base URL for templates
     caches: new Map(),              // Cache storage for templates
     extension: '.html',             // File extension for templates
-    Handlebars:Handlebars,
-    container : null,
+    Handlebars: Handlebars,
+    container: document.body,
+    metric: null,
 
     /**
      * Preload an array of paths and fetch their templates
@@ -20,13 +22,17 @@ const Template = {
             if (!this.caches.has(path)) {
                 const fullPath = `${this.prefix}${path}${this.extension}`;
                 try {
+                    this.cache.add(path, STATES.FETCHING);
                     const template = await this.fetch(fullPath);
                     if (template) {
                         this.cache.add(path, template);  // Add template to cache
                     }
                 } catch (error) {
+                    this.cache.delete(path);
                     console.error(`Failed to preload template at path ${path}:`, error);
                 }
+            } else {
+                console.log("it's already loaded")
             }
         }
     },
@@ -94,19 +100,20 @@ const Template = {
      * @param {string} targetElementId - The ID of the HTML element to inject the rendered template into.
      */
     render: async function (path, data) {
-        // Check if the template is already cached, otherwise preload it
-        if (!this.caches.has(path)) {
-            await this.preload([path]);  // Preload template if not cached
-        }
+
+        this.container.classList.add('loading');
+        await this.preload([path]);  // Preload template . it will load if it's not loaded
 
         const templateSource = this.caches.get(path);
         if (!templateSource) {
             console.error(`Template for path ${path} not found.`);
-            return;
+            return '';
         }
 
-        const parsedHtml = await this.parse(templateSource, data) ;
-        if(this.container) this.container.innerHTML = await Translator.translate(parsedHtml);
+        const parsedHtml = await this.parse(templateSource, data);
+        this.container.innerHTML = await Translator.translate(parsedHtml, data);
+        this.container.classList.remove('loading');
+        this.container.classList.add(`template${path.replaceAll('/', '-')}`);
     },
 
     /**
