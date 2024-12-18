@@ -1,7 +1,30 @@
-<div class="entry">
-  <h1>{{title}}</h1>
-  _greeting_
-  <div class="body">
-    {{body}}_error.serverError.yes_
-  </div>
+<div class="user-details">
+  <h1>User Details _greeting_</h1>
+  <p><strong>ID:</strong> {{user.id}}</p>
+  <p><strong>Name:</strong> {{user.name}}</p>
+  <p><strong>Username:</strong> {{user.username}}</p>
+  <p><strong>Email:</strong> {{user.email}}</p>
+  <h2>Address</h2>
+  <p><strong>Street:</strong> {{user.address.street}}</p>
+  <p><strong>Suite:</strong> {{user.address.suite}}</p>
+  <p><strong>City:</strong> {{user.address.city}}</p>
+  <p><strong>Zipcode:</strong> {{user.address.zipcode}}</p>
+  <p><strong>Geo:</strong> Latitude: {{user.address.geo.lat}}, Longitude: {{user.address.geo.lng}}</p>
+  <h2>Contact</h2>
+  <p><strong>Phone:</strong> {{user.phone}}</p>
+  <p><strong>Website:</strong> <a href="http://{{user.website}}" target="_blank">{{user.website}}</a></p>
+  <h2>Company</h2>
+  <p><strong>Name:</strong> {{user.company.name}}</p>
+  <p><strong>Catch Phrase:</strong> {{user.company.catchPhrase}}</p>
+  <p><strong>Business:</strong> {{user.company.bs}}</p>
 </div>
+
+<a href="/about/{{user.next}}?limit=1">Go to {{user.next}}</a>
+<br>
+<a href="/about/{{user.prev}}?limit=1">Go to {{user.prev}}</a>
+
+{{#photos}}
+  <div>
+    <img src="{{this.url}}" alt="{{this.title}}">
+  </div>
+{{/photos}}

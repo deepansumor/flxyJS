@@ -1,9 +1,19 @@
-import Emitter from "./common/emitter.js";
-import Router from "./common/router.js";
-import API from "./common/api.js"
-import Template from "./common/template.js";
-import Translator from "./common/translator.js";
+import * as Emitter from "./common/emitter.js";
+import * as States from "./common/state.js";
+import * as Router from "./common/router.js";
+import * as Api from "./common/api.js"
+import * as Template from "./common/template.js";
+import * as Translator from "./common/translator.js";
+import * as Device from "./common/device.js"
+
+
 const Flxy = {};
+
+((() => {
+    States.init({});
+    Router.init();
+    Translator.init();
+})());
 
 // Create and prepend the container
 const container = document.createElement("div");
@@ -11,7 +21,19 @@ container.id = "flxy";
 document.body.prepend(container);
 
 Flxy.container = container;
-Template.container = container;
+Template.setContainer (container);
+
+
+Api.configure({
+    baseEndpoint: 'https://jsonplaceholder.typicode.com',
+    headers: {
+        'Authorization': 'Bearer YOUR_TOKEN',
+        'X-Custom-Header': 'SomeValue',
+    },
+    middlewares: [function (options) {
+        options.headers.new = 1;
+    }]
+});
 
 
 // Middleware that checks if the user is authenticated
@@ -22,6 +44,7 @@ async function authMiddleware(request) {
         return false; // Abort the route change
     }
     request.data = { yes: 1 };
+    request.user = await Api.get(`/users/${request.params.id}`);
     return true; // Proceed to route handler
 }
 
@@ -37,8 +60,10 @@ Router.register('/about', async (request) => {
 
 Router.register('/about/:id', async (request) => {
     try {
-        console.log(request);
-        await Template.render("/about", request.query);
+        request.user.next = +request.user.id + 1;
+        request.user.prev = +request.user.id - 1;
+        request.photos = [];
+        await Template.render("/about", request);
     } catch (error) {
         console.error('Error rendering /about template', error);
     }
@@ -57,6 +82,10 @@ Router.register('/profile', async (request) => {
 Flxy.template = Template;
 Flxy.translator = Translator;
 Flxy.router = Router; // Replaces current path with /
+Flxy.api = Api;
+Flxy.emitter = Emitter;
+Flxy.device = Device.hashString();
+Flxy.states = States;
 
 window.Flxy = Flxy;
 
@@ -74,27 +103,21 @@ Emitter.emit('event:sdk.loaded', {
 // Start handling the current route
 Flxy.router.handle();
 
-API.configure({
-    baseEndpoint: 'https://jsonplaceholder.typicode.com',
-    headers: {
-        'Authorization': 'Bearer YOUR_TOKEN',
-        'X-Custom-Header': 'SomeValue',
-    },
-    middlewares: [function (options) {
-        options.headers.new = 1;
-    }]
+
+// Subscribe to specific key
+States.subscribe('user', (key, data) => {
+    console.log('User state updated:', key, data);
 });
 
-async function fetchUserData(userId) {
-    try {
-        const data = await API.get(`/todos/1`);
-        console.log(data);
-    } catch (error) {
-        console.error(error);
-    }
-}
+// Subscribe to multiple keys
+States.subscribe(['user', 'theme'], (key, data) => {
+    console.log('State updated:', key, data);
+});
 
-fetchUserData()
+// Example usage
+States.init({ user: null });
+console.log(States.get("theme"));
 
+States.persist();
 
 export default Flxy;

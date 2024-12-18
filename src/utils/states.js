@@ -4,5 +4,4 @@ export default {
     LOADING:'loading',
     SUCCESS:'success',
     FAILED:'failed',
-    
 };

@@ -1,5 +1,5 @@
 {
-    "greeting": "Hello, world! {title}",
+    "greeting": "Hello, world! {user.name}",
     "error": {
       "notFound": "Page not found",
       "serverError": {
