@@ -75,6 +75,8 @@ export const register = (routeName, handler, middlewares = []) => {
  */
 export const handle = async () => {
   const query = getParsedQuery();
+  if (!query.routeName) return console.log("No route");
+
   const routeName = query.routeName;
   const route = Router.routes[routeName] || Router.routes["/404"];
   const { handler, middlewares } = route || {};
@@ -228,7 +230,7 @@ export const getParsedQuery = () => {
   return {
     routeName: staticRoute ? queryRoute : dynamicRoute ? dynamicRoute.routeName : null,
     queryRoute,
-    params: dynamicRoute?.params
+    params: dynamicRoute?.params || {}
   };
 };
 

@@ -62,8 +62,8 @@ export const addMiddleware = (name, middleware) => {
  */
 export const executeMiddlewares = async (options, middlewareNames) => {
     const middlewares = [
-        ...API.defaultMiddlewares,  
-        ...getNamedMiddlewares(middlewareNames), 
+        ...API.defaultMiddlewares,
+        ...getNamedMiddlewares(middlewareNames),
     ];
 
     const results = await Promise.all(
@@ -154,13 +154,21 @@ export const deleteRequest = async (url, options = {}, middlewareNames = []) => 
  */
 export const request = async (url, options = {}, middlewareNames = []) => {
     options.headers = options.headers || {};
+    options.query = options.query || {};
     const middlewareResults = await executeMiddlewares(options, middlewareNames);
 
     if (!middlewareResults.every(result => result)) {
         throw new Error('Middleware failed, API request blocked');
     }
 
-    const finalUrl = `${API.baseEndpoint}${url}`;
+
+    const finalUrl = new URL(`${API.baseEndpoint}${url}`);
+    const query = options.query || {};
+
+    // Loop through the query object and append/update the query parameters in finalUrl
+    Object.keys(query).forEach(key => finalUrl.searchParams.set(key, query[key]));
+
+    const combinedUrl = finalUrl.toString();
 
     const headers = {
         'Content-Type': 'application/json',
@@ -169,10 +177,12 @@ export const request = async (url, options = {}, middlewareNames = []) => {
         ...options.headers,
     };
 
+    if(options.method == "GET") delete headers['Content-Type'];
+
     const payload = { ...options, headers };
 
     try {
-        const response = await fetch(finalUrl, payload);
+        const response = await fetch(combinedUrl, payload);
 
         if (!response.ok) {
             throw new Error(`Request failed with status ${response.status}`);

@@ -1,7 +1,7 @@
 import STATES from "../utils/states.js";
 
 const Translator = {
-    currentLang: 'en', // Default language
+    currentLang: null, // Default language
     translations: {},  // Store loaded translations
 };
 
@@ -28,12 +28,14 @@ export async function load(lang, callback = null) {
         Translator.translations[lang] = data;
         Translator.currentLang = lang;
 
-        if (typeof callback === "function") return callback(); // Execute callback after successful fetch
     } catch (err) {
         Translator.translations[lang] = STATES.NULL; // Mark as failed
         console.error(err);
-        throw err;
+        // throw err;
     }
+
+    if (typeof callback === "function") return callback(); // Execute callback fetch
+
 }
 
 /**
@@ -91,6 +93,12 @@ export function replacePlaceholders(str, params) {
  * @returns {string} - The string with translated values and replaced placeholders.
  */
 export async function translate(str, params = {}) {
+
+    if(!Translator.currentLang){
+        console.warn('No language set!, Please set a language using Translator.init(lang) before calling translate()');
+        return str;
+    };
+
     const isFetching = Translator.translations[Translator.currentLang] === STATES.FETCHING;
     const isMissing = !Translator.translations[Translator.currentLang];
 
@@ -99,13 +107,14 @@ export async function translate(str, params = {}) {
 
     if (isMissing || isFetching) {
         try {
+            console.warn(`isMissing | isFetching`, isFetching,isMissing);
             return await load(Translator.currentLang, processString);
         } catch (error) {
             console.error(`Translation loading failed for language: ${Translator.currentLang}`, error);
             return str; // Return the original string as a fallback
         }
     } else {
-        console.log('loaded');
+        console.log('Alread Loaded', Translator.currentLang);
     }
 
     return processString();
@@ -116,8 +125,8 @@ export async function translate(str, params = {}) {
  * @example
  * Translator.init(); // Initializes the translator with the default language (en).
  */
-export async function init() {
-    await load(Translator.currentLang);
+export async function init(lang) {
+    lang && await load(lang);
 }
 
 export default Translator;
