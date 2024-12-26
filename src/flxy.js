@@ -58,7 +58,4 @@ const modules = ({
 
 Object.keys(modules).forEach((module) => Flxy[module] = {...modules[module]});
 
-// Expose Flxy to the global window object
-window.Flxy = Flxy; 
-
 export default Flxy;
