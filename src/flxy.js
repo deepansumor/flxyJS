@@ -6,6 +6,8 @@ import * as Api from "./common/api.js";
 import * as Template from "./common/template.js";
 import * as Translator from "./common/translator.js";
 import * as Device from "./common/device.js";
+import * as Events from "./common/events.js";
+import * as Location from "./common/location.js";
 
 // Define the main Flxy object
 const Flxy = {};
@@ -44,6 +46,7 @@ const init = (callback) => {
 init(() => {
     Flxy.container = createContainer();
     Template.setContainer(Flxy.container);
+    Events.init(Flxy.container)
 });
 
 const modules = ({
@@ -54,6 +57,8 @@ const modules = ({
     emitter: Emitter,
     device: Device,
     states: States,
+    events:Events,
+    location:Location
 });
 
 Object.keys(modules).forEach((module) => Flxy[module] = {...modules[module]});

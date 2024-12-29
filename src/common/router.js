@@ -73,9 +73,15 @@ export const register = (routeName, handler, middlewares = []) => {
  * Handles route changes, including executing middlewares and the route handler.
  * @example Router.handle();
  */
-export const handle = async () => {
+export const handle = async (callback = () => {}) => {
   const query = getParsedQuery();
-  if (!query.routeName) return console.log("No route");
+  callback= typeof callback != "function" ? () => {} : callback;
+  if (!query.routeName) {
+    Router.navigating = false;
+    callback({status:404})
+    console.log("No route");
+    return;
+  }
 
   const routeName = query.routeName;
   const route = Router.routes[routeName] || Router.routes["/404"];
@@ -83,6 +89,7 @@ export const handle = async () => {
   Router.currentPath = routeName;
 
   if (!handler) {
+    callback({status:404})
     error(404);
     return;
   }
@@ -109,6 +116,7 @@ export const handle = async () => {
 
   notifyListeners(context);
   Router.navigating = false;
+  callback({status:200})
 };
 
 /**
