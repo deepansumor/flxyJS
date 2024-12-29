@@ -3,7 +3,14 @@ import STATES from "../utils/states.js";
 const Translator = {
     currentLang: null, // Default language
     translations: {},  // Store loaded translations
+    prefix: `${window.location.origin}/templates`, // Base URL for Templates
 };
+
+
+// Set the Prefix of domain
+export function setPrefix (prefix){
+    Translator.prefix = prefix;
+}
 
 /**
  * Load the translation JSON for the given language.
@@ -18,7 +25,7 @@ export async function load(lang, callback = null) {
 
     Translator.translations[lang] = STATES.FETCHING; // Mark as fetching
     try {
-        const response = await fetch(`/translations/${lang}.json`);
+        const response = await fetch(`${Translator.prefix}/${lang}.json`);
         if (!response.ok) {
             throw new Error(`Language file ${lang} not found`);
         }

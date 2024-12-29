@@ -13,7 +13,10 @@ const Template = {
     config: {}
 };
 
-
+// Set the Prefix of domain
+export function setPrefix (prefix){
+    Template.prefix = prefix;
+}
 
 /**
  * Fetch the template from the provided URL
