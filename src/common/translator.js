@@ -3,7 +3,7 @@ import STATES from "../utils/states.js";
 const Translator = {
     currentLang: null, // Default language
     translations: {},  // Store loaded translations
-    prefix: `${window.location.origin}/templates`, // Base URL for Templates
+    prefix: `${window.location.origin}/translations`, // Base URL for Templates
 };
 
 
