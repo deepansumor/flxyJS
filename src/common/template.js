@@ -140,7 +140,7 @@ export async function getHTML(path, data , partials = {} , tags) {
     const combinedHTML = templateSource;
     const parsedHtml = await parseTemplate(combinedHTML, data , partials , tags);
 
-    return translate(parsedHtml, data);
+    return await translate(parsedHtml, data);
 }
 
 /**
