@@ -40,3 +40,13 @@ export const str = {
     }
 };
 
+/**
+ * Checks if a given value is a plain object.
+ * 
+ * @param {any} which - The value to check.
+ * @returns {boolean} - Returns true if the value is a plain object, otherwise false.
+ */
+export function isObject(which) {
+    // Return true only if the value is an object, not null, and not an array
+    return typeof which === "object" && which !== null && !Array.isArray(which);
+}

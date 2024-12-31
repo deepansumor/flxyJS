@@ -1,6 +1,7 @@
 import Mustache from "mustache";
 import STATES from "../utils/states.js";
 import { translate } from "./translator.js";
+import { isObject } from "./helpers.js";
 
 // Configuration object
 const Template = {
@@ -14,9 +15,12 @@ const Template = {
 };
 
 // Set the Prefix of domain
-export function setPrefix (prefix){
+export function setPrefix(prefix) {
     Template.prefix = prefix;
 }
+
+// export engine 
+export const engine = Template.engine;
 
 /**
  * Fetch the template from the provided URL
@@ -95,76 +99,125 @@ export async function refreshCache(path) {
 }
 
 /**
- * Render a template for a given path with provided data and inject it into the specified target container.
+ * Fetches the translated HTML for a given template path, processes the template with the provided data,
+ * and incorporates partials if specified.
  *
- * @param {string} path - The path to fetch the template from. The template is expected to be cached or preloaded.
- * @param {Object} data - The data to inject into the template, replacing placeholders.
- * 
+ * @param {string} path - The path of the template to fetch. The template is expected to be preloaded in the cache.
+ * @param {Object} data - The data object to inject into the template for dynamic content rendering.
+ * @param {Object} [partials={}] - Optional partial templates to be included in the main template during rendering.
+ * @param {Object} [tags] - Optional custom tags to be passed for template rendering (e.g., custom delimiters).
+ * @returns {Promise<string>} - A Promise that resolves to the fully translated HTML, including injected data and rendered partials.
+ *
  * Workflow:
- * 1. Adds a loading class to indicate rendering is in progress.
- * 2. Preloads the main template and optional header/footer templates if configured.
- * 3. Combines the header, main template, and footer, then parses and translates the template.
- * 4. Renders the final HTML into the container and applies the appropriate classes.
- * 
- * Notes:
- * - Requires `Template.config` to specify optional `header` and `footer` templates.
- * - Templates are fetched from `Template.caches`, which should be prepopulated.
- * - Adds a class `template[path-reformatted]` to the container for custom styling or identification.
- * 
- * @throws {Error} If the template for the specified path is not found in the cache.
+ * - Ensures the provided `data` is valid and combines it with default configuration data.
+ * - Preloads the main template if it's not already loaded.
+ * - Retrieves the template source from the cache and processes it.
+ * - Returns the translated HTML after processing.
+ *
+ * @throws {Error} If the template for the specified path is not found in the cache or if the `data` is not valid.
  */
-export async function render(path, data) {
-    // Show loading state on the container
-    Template.container.classList.add('loading');
+
+export async function getHTML(path, data , partials = {} , tags) {
+    data = data || {};
+    if (!isObject(data)) {
+        throw new Error(`data must be an object`);
+    }
 
     // Preload the main template if not already loaded
     await preload([path]);
 
-    // Initialize header and footer HTML
-    let footerHTML = "";
-    let headerHTML = "";
-
-    // Check if Template.config is an object and preload header/footer if specified
-    if (typeof Template.config === "object") {
-        const { header, footer } = Template.config;
-        const preloads = [];
-        
-        if (header) preloads.push(header);
-        if (footer) preloads.push(footer);
-        
-        // Preload header and footer templates
-        await preload(preloads);
-
-        // Fetch header and footer templates from the cache
-        headerHTML = header ? await Template.caches.get(header) : "";
-        footerHTML = footer ? await Template.caches.get(footer) : "";
-    }
-
     // Fetch the main template source from the cache
     const templateSource = Template.caches.get(path);
     if (!templateSource) {
-        console.error(`Template for path "${path}" not found.`);
-        return '';
+        throw new Error(`Template for path "${path}" not found.`);
     }
 
-    // Combine header, main template, and footer, then parse and translate
-    const parsedHtml = await parseTemplate(headerHTML + templateSource + footerHTML, data);
-    Template.container.innerHTML = await translate(parsedHtml, data);
+    // Merge default data with the provided data
+    const defaults = isObject(Template.config.defaults) ? Template.config.defaults : {};
+    data = { ...data, ...defaults };
 
-    // Remove loading state and add template-specific class
-    Template.container.classList.remove('loading');
-    Template.container.classList.add(`template${path.replaceAll('/', '-')}`);
+    //  main template, then parse and translate
+    const combinedHTML = templateSource;
+    const parsedHtml = await parseTemplate(combinedHTML, data , partials , tags);
+
+    return translate(parsedHtml, data);
+}
+
+/**
+ * Renders a template into the container using the given path and data.
+ *
+ * @param {string} path - The path to fetch the template from.
+ * @param {Object} data - The data to inject into the template.
+ * @param {Object} partials - Partials to include in the rendering process. 
+ *                            If keys point to objects, templates are preloaded. 
+ *                            If keys point to strings, they are used directly.
+ * @param {Object} tags - Custom tags for the template engine, if any.
+ */
+export async function render(path, data, partials = {}, tags) {
+    try {
+        // Show loading state on the container
+        Template.container.classList.add('loading');
+
+        // Ensure partials is an object
+        partials = isObject(partials) ? partials : {};
+
+        // Process partials: preload templates if values are objects
+        const processedPartials = {};
+        const preloadPromises = [];
+
+        for (const [key, value] of Object.entries(partials)) {
+            if (typeof value === "string") {
+                // If value is a string, use it directly
+                processedPartials[key] = value;
+            } else if (isObject(value) && value.path) {
+                // If value is an object with a `path`, preload the template
+                preloadPromises.push(
+                    preload([value.path]).then(() => {
+                        const template = Template.caches.get(value.path);
+                        if (!template) {
+                            throw new Error(`Partial template for "${value.path}" not found.`);
+                        }
+                        processedPartials[key] = template;
+                    })
+                );
+            }
+        }
+
+        // Wait for all partials to preload
+        await Promise.all(preloadPromises);
+
+        // Fetch the translated HTML
+        const html = await getHTML(path, data, processedPartials, tags);
+
+        // Inject the HTML into the container
+        Template.container.innerHTML = html;
+
+        // Remove loading state and add template-specific class
+        Template.container.classList.remove('loading');
+        Template.container.classList.add(`template${path.replaceAll('/', '-')}`);
+    } catch (error) {
+        console.error(`Failed to render template for path "${path}":`, error);
+    }
 }
 
 
+
 /**
- * Parse the raw template string with engine and inject data
- * @param {string} templateSource - The raw template string.
- * @param {Object} data - The data to inject into the template.
- * @returns {string} - The parsed HTML with injected data.
+ * Parses a raw template string using the configured template engine and injects the provided data.
+ *
+ * @param {string} templateSource - The raw template string to be processed and rendered.
+ * @param {Object} data - The data object to inject into the template for dynamic content rendering.
+ * @param {Object} [partials={}] - Optional partial templates to be included in the main template during rendering.
+ * @param {Object} [tags] - Optional custom tags to be passed for template rendering (e.g., custom delimiters).
+ * @returns {string} - The parsed HTML string with the injected data and rendered partials.
+ *
+ * Workflow:
+ * - Compiles the raw template using the template engine and the provided data, partials, and tags.
+ * - Returns the rendered HTML with the injected content.
  */
-export async function parseTemplate(templateSource, data) {
-    const template = Template.engine.render(templateSource, data);  // Compile engine template
+
+export async function parseTemplate(templateSource, data , partials = {},tags) {
+    const template = Template.engine.render(templateSource, data , partials, tags);  // Compile engine template
     return template;  // Return the rendered HTML
 }
 
