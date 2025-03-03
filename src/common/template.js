@@ -51,9 +51,7 @@ export async function preload(paths) {
             try {
                 Template.caches.set(path, STATES.FETCHING);
                 const template = await get(fullPath);
-                if (template) {
-                    Template.caches.set(path, template);  // Add template to cache
-                }
+                Template.caches.set(path, template);  // Add template to cache
             } catch (error) {
                 Template.caches.delete(path);
                 console.error(`Failed to preload template at path ${path}:`, error);
