@@ -30,7 +30,21 @@ const Router = {
   routes: {}, // Registered routes and their associated handlers.
   routeStates: {}, // The current state of each route (e.g., loading, success, error).
   middlewares: [], // Array of middlewares to execute before handling the route.
+  globalMiddlewares: [] // Array of middlewares to execute before handling the each route.
 };
+
+
+/**
+ * Adds a global middleware that runs before every route-specific middleware and handler.
+ * @param {function} middleware - Middleware function to be executed globally.
+ */
+export const use = (middleware) => {
+  if (typeof middleware !== "function") {
+    throw new Error("Global middleware should be a function.");
+  }
+  Router.globalMiddlewares.push(middleware);
+};
+
 
 /**
  * Initializes the router by setting the current route and listening for browser history changes.
@@ -73,12 +87,12 @@ export const register = (routeName, handler, middlewares = []) => {
  * Handles route changes, including executing middlewares and the route handler.
  * @example Router.handle();
  */
-export const handle = async (callback = () => {}) => {
+export const handle = async (callback = () => { }) => {
   const query = getParsedQuery();
-  callback= typeof callback != "function" ? () => {} : callback;
+  callback = typeof callback != "function" ? () => { } : callback;
   if (!query.routeName) {
     Router.navigating = false;
-    callback({status:404})
+    callback({ status: 404 })
     console.log("No route");
     return;
   }
@@ -89,7 +103,7 @@ export const handle = async (callback = () => {}) => {
   Router.currentPath = routeName;
 
   if (!handler) {
-    callback({status:404})
+    callback({ status: 404 })
     error(404);
     return;
   }
@@ -103,6 +117,11 @@ export const handle = async (callback = () => {}) => {
   };
 
   try {
+
+    // Execute global middlewares first
+    const globalMiddlewareResults = await executeMiddlewares(Router.globalMiddlewares, context);
+    if (!globalMiddlewareResults.every((result) => result)) return error(400);
+
     const middlewareResults = await executeMiddlewares(middlewares, context);
 
     if (!middlewareResults.every(result => result)) return error(400);
@@ -116,7 +135,7 @@ export const handle = async (callback = () => {}) => {
 
   notifyListeners(context);
   Router.navigating = false;
-  callback({status:200})
+  callback({ status: 200 })
 };
 
 /**
