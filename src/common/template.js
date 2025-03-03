@@ -126,7 +126,7 @@ export async function getHTML(path, data , partials = {} , tags) {
 
     // Fetch the main template source from the cache
     const templateSource = Template.caches.get(path);
-    if (!templateSource) {
+    if (typeof templateSource != "string") {
         throw new Error(`Template for path "${path}" not found.`);
     }
 
