@@ -18,6 +18,12 @@ Flxy.js is a lightweight, modular JavaScript framework designed for seamless cli
 ## Installation
 Flxy.js can be integrated into any JavaScript project.
 
+### **CDN Installation**
+You can use Flxy.js directly via CDN:
+```html
+<script src="http://cdn.jsdelivr.net/gh/deepansumor/FlxyJS@latest/dist/main.bundle.js"></script>
+```
+
 ### **Manual Installation**
 Simply clone or download the repository and include the `flxy.js` file in your project.
 ```javascript
@@ -33,144 +39,89 @@ Flxy.app.setContainer("#app");
 Flxy.events.init("#root");
 ```
 
-### **2. Configure Routing**
-Define routes dynamically and link them to template rendering.
+### **2. Device Detection**
+Flxy.js provides built-in methods to retrieve device details.
 ```javascript
-const FlxyRouter = Flxy.router;
-const FlxyTemplate = Flxy.template;
-
-const updateActiveNavLink = ({ path }) => {
-    document.querySelectorAll("footer a").forEach(link => link.classList.remove("footer__nav-link--active"));
-    document.querySelector(`footer a[href="${path}"]`)?.classList.add("footer__nav-link--active");
-    return true;
-};
-FlxyRouter.use(updateActiveNavLink);
-
-const routeMappings = {
-    "/dashboard": "/dashboard",
-    "/workout": "/workout",
-    "/tasks": "/tasks"
-};
-
-Object.entries(routeMappings).forEach(([route, template]) => {
-    FlxyRouter.register(route, async () => {
-        await FlxyTemplate.render(template);
-    });
-});
+console.log(Flxy.device.getId()); // Retrieves unique device ID
+console.log(Flxy.device.getBrowserInfo()); // Returns browser details
+console.log(Flxy.device.getCapabilities()); // Detects touch support & screen resolution
+console.log(Flxy.device.getNetworkInfo()); // Provides network connection details
+console.log(Flxy.device.getDeviceType()); // Identifies device type (mobile, desktop, etc.)
 ```
 
-### **3. API Requests with Middleware Support**
-Flxy.js supports named middleware execution for API requests.
-```javascript
-Flxy.api.configure({ baseEndpoint: "https://api.example.com" });
-
-Flxy.api.addMiddleware("auth", async (options) => {
-    options.headers["Authorization"] = `Bearer ${localStorage.getItem("token")}`;
-});
-
-Flxy.api.get("/users", {}, "auth").then(console.log);
+### **3. Auto-Translation of Templates**
+Flxy.js supports inline auto-translation in templates.
+```html
+<p>Welcome to the site, _('greeting')</p>
 ```
+When `Flxy.translator.load("en")` is called, this text will be automatically translated.
 
-### **4. State Management**
-Store and retrieve application state efficiently.
+---
+## Detailed Module Breakdown
+### **1. State Management (`state.js`)**
+Handles application-wide state with persistence.
+#### **Example Use Cases:**
 ```javascript
 Flxy.states.set("theme", "dark");
 console.log(Flxy.states.get("theme")); // Output: 'dark'
+Flxy.states.subscribe("theme", (key, value) => console.log(`${key} changed to ${value}`));
 ```
 
-### **5. Event Handling**
-Add event listeners using delegated event binding.
+### **2. Routing (`router.js`)**
+Manages client-side routing dynamically.
+#### **Methods:**
+- `Flxy.router.register(route, handler, ...middlewares)` - Registers a route with optional middleware functions.
+- `Flxy.router.navigate(route)` - Navigates to a registered route.
+- `Flxy.router.use(middleware)` - Adds middleware to routes.
+- `Flxy.router.handle(callback)` - Handles route changes dynamically.
+
+#### **Example Use Cases:**
 ```javascript
-Flxy.events.addListener(".button", "click", function () {
-    console.log("Button clicked");
+const authMiddleware = (request, next) => {
+    if (!localStorage.getItem("token")) {
+        console.log("Unauthorized access");
+        return;
+    }
+    next();
+};
+
+Flxy.router.register("/dashboard", authMiddleware, (request) => {
+    console.log("Dashboard loaded", request);
 });
+
+Flxy.router.navigate("/dashboard");
+```
+The `request` object contains route parameters and query strings that can be used inside the handler function. Middleware functions can modify the request before passing it to the handler.
+
+### **3. API Handling (`api.js`)**
+Handles API requests with middleware support.
+#### **Example Use Cases:**
+```javascript
+Flxy.api.configure({ baseEndpoint: "https://api.example.com" });
+Flxy.api.get("/users").then(console.log);
 ```
 
-### **6. Dynamic Templating**
-Render dynamic templates with preloaded data.
+### **4. Event System (`emitter.js`)**
+Implements a pub-sub pattern for event-driven architecture.
+#### **Example Use Cases:**
 ```javascript
-Flxy.template.setPrefix("/templates");
-Flxy.template.render("/dashboard", { username: "Alex" });
+Flxy.emitter.on("userLoggedIn", (user) => console.log("User logged in:", user));
+Flxy.emitter.emit("userLoggedIn", { name: "John Doe" });
 ```
 
-### **7. Translation & Internationalization**
-Manage multi-language support dynamically.
+### **5. Performance Monitoring (`performance.js`)**
+Tracks execution time for specific operations.
+#### **Example Use Cases:**
 ```javascript
-Flxy.translator.setPrefix("/translations");
-Flxy.translator.load("en").then(() => {
-    console.log(Flxy.translator.getByKey("greeting")); // Output: 'Hello'
-});
+const tracker = Flxy.performance.start("Database Query");
+setTimeout(() => tracker.end(), 500);
 ```
 
 ---
-## Advanced Features
-### **Middleware for Performance Logging**
-Flxy.js allows tracking performance using middleware-based logging.
-```javascript
-const tracker = Flxy.performance.start("API Call");
-
-Flxy.api.get("/users").then(() => {
-    tracker.end();
-});
-```
-
-### **Geolocation API Integration**
-Fetch user location using GPS or IP-based fallback.
-```javascript
-Flxy.location.get().then(console.log);
-```
-
-### **Modal Management via Event Listeners**
-```javascript
-Flxy.events.addListener("[data-modal]", "click", async function () {
-    let { modal } = { ...this.dataset };
-    if (!modal) return;
-    
-    let html = await Flxy.template.getHTML(modal, {});
-    document.getElementById("root").innerHTML += html;
-});
-```
-
-### **Form Handling & Dynamic UI Updates**
-```javascript
-Flxy.events.addListener(".task-form__frequency-type", "click", function () {
-    let { type } = { ...this.dataset };
-    document.querySelector(".task-form__weekly-container")
-        .classList[type == "weekly" ? "remove" : "add"]
-        ("task-form__weekly-container--hidden");
-
-    document.querySelectorAll(".task-form__frequency-type").forEach(el => el.classList.remove("task-form__frequency-type--active"));
-    this.classList.add("task-form__frequency-type--active")
-});
-```
-
-### **Tag Management in Editable Fields**
-```javascript
-Flxy.events.addListener(".task-list__tags [contenteditable]", "keydown", function (e) {
-    if (e.key === "Enter") {
-        e.preventDefault();
-        addTag(this);
-    }
-});
-
-function addTag(elem) {
-    let value = elem.innerHTML.trim();
-    if (!value) return;
-
-    let container = elem.closest(".task-list__tags");
-    if (!container) return;
-
-    const colors = ["yellow", "blue", "purple", "green"];
-    let randomColor = colors[Math.floor(Math.random() * colors.length)];
-    
-    let newTag = document.createElement("span");
-    newTag.className = `tag tag--${randomColor}`;
-    newTag.textContent = `#${value}`;
-    
-    container.insertBefore(newTag, container.lastElementChild);
-    elem.innerHTML = "";
-}
-```
+## Example Projects
+For real-world examples, check out:
+- **BoostX**: [GitHub Repo](https://github.com/deepansumor/BoostX) - Productivity and task management app.
+- **WeatherPro**: [GitHub Repo](https://github.com/deepansumor/WeatherPro) - Weather forecasting application.
 
 ---
 ## Conclusion
@@ -187,4 +138,3 @@ For contributions, bug reports, or feature requests, open an issue on GitHub.
 
 ---
 **Developed with ❤️ for modern web applications.**
-
