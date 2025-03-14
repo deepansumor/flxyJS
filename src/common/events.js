@@ -1,3 +1,5 @@
+import { info } from "./logger";
+
 const eventRegistry = new WeakMap();
 const Event = {};
 
@@ -28,9 +30,15 @@ export function addListener(selector, eventType, callback) {
 
     // Attach the event listener with delegation
     const delegatedCallback = (event) => {
+        // info(`Event triggered on ${event.target.tagName}`, event.target); // Debugging log
+
+        // Find the element that actually matches the selector
         const target = event.target.closest(selector);
+
+        // Ensure the event was triggered from inside the correct container
         if (target && Event.container.contains(target)) {
-            callback(event, target);
+            info("Actual element that triggered event:", target); // Debugging log
+            callback.call(target, event); // 
         }
     };
 
@@ -52,6 +60,7 @@ export function addListener(selector, eventType, callback) {
         registeredEvents[eventType].push(delegatedCallback);
     }
 }
+
 
 /**
  * Removes a specific callback or all callbacks for an event type on the container.

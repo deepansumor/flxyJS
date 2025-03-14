@@ -1,3 +1,5 @@
+import { error as LogError , info as LogInfo} from "./logger.js";
+
 
 const module = {
    
@@ -23,13 +25,13 @@ export default async function init() {
             : getApproximateLocation());
 
         // Log the fetched location details
-        console.log('Location:', latitude, longitude);
+        LogInfo('Location:', latitude, longitude);
         module.location = { latitude:+latitude, longitude:+longitude };
         return module.location;
 
     } catch (error) {
         // Log any initialization error
-        console.error('Error during initialization:', error);
+        LogError('Error during initialization:', error);
     }
 }
 
@@ -52,7 +54,7 @@ async function getApproximateLocation() {
         return await response.json();
     } catch (error) {
         // Log any errors encountered during the fetch
-        console.error('Error fetching IP-based location:', error);
+        LogError('Error fetching IP-based location:', error);
         return { latitude: null, longitude: null }; // Default values if location fails
     }
 }
@@ -68,7 +70,7 @@ export async function getLocationPermissionState() {
         return state; // Return the permission state
     } catch (error) {
         // Log any errors during permission retrieval
-        console.error('Error retrieving geolocation permission state:', error);
+        LogError('Error retrieving geolocation permission state:', error);
         return 'unknown'; // Return 'unknown' if an error occurs
     }
 }
@@ -100,7 +102,7 @@ export async function getLatLongFromNavigator() {
             },
             error => {
                 // Log geolocation errors and reject the promise with default values
-                console.error('Geolocation error:', error);
+                LogError('Geolocation error:', error);
                 reject({ latitude: null, longitude: null });
             }
         );
@@ -114,7 +116,7 @@ export async function getLatLongFromNavigator() {
 export async function promptForLocationPermission() {
     return new Promise((resolve) => {
         if (!navigator.geolocation) {
-            console.error('Geolocation is not supported by this browser.');
+            LogError('Geolocation is not supported by this browser.');
             resolve(false); // Return false if geolocation is not supported
             return;
         }
@@ -123,7 +125,7 @@ export async function promptForLocationPermission() {
         navigator.geolocation.getCurrentPosition(
             () => resolve(true), // Permission granted
             (error) => {
-                console.error('Error prompting for geolocation permission:', error);
+                LogError('Error prompting for geolocation permission:', error);
                 resolve(false); // Permission denied or an error occurred
             }
         );

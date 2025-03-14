@@ -1,4 +1,6 @@
 import { local as storage } from "./storage.js";
+import { error as LogError } from "./logger.js";
+
 
 /**
  * The Device module for handling device information, including unique IDs, capabilities, network info, etc.
@@ -93,7 +95,7 @@ export async function checkPermission(name) {
         const status = await navigator.permissions.query({ name });
         return status.state;
     } catch (error) {
-        console.error("Permission query error:", error);
+        LogError("Permission query error:", error);
         return "error";
     }
 }
@@ -108,7 +110,7 @@ export async function getStorageInfo() {
             const { quota, usage } = await navigator.storage.estimate();
             return { quota, usage };
         } catch (error) {
-            console.error("Storage estimation error:", error);
+            LogError("Storage estimation error:", error);
             return { quota: null, usage: null };
         }
     }

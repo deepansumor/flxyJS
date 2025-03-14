@@ -1,3 +1,4 @@
+import { error as LogError } from "./logger.js";
 /**
  * The API module for handling HTTP requests with support for one-time configuration, async middlewares, and named middlewares.
  */
@@ -72,7 +73,7 @@ export const executeMiddlewares = async (options, middlewareNames) => {
                 const result = await middleware(options);
                 return result !== false;
             } catch (error) {
-                console.error('Middleware error:', error);
+                LogError('Middleware error:', error);
                 return false;
             }
         })
@@ -177,7 +178,7 @@ export const request = async (url, options = {}, middlewareNames = []) => {
         ...options.headers,
     };
 
-    if(options.method == "GET") delete headers['Content-Type'];
+    if (options.method == "GET") delete headers['Content-Type'];
 
     const payload = { ...options, headers };
 
@@ -191,7 +192,7 @@ export const request = async (url, options = {}, middlewareNames = []) => {
         const data = await response.json();
         return data;
     } catch (error) {
-        console.error('API request failed:', error);
+        LogError('API request failed:', error);
         throw error;
     }
 };

@@ -1,5 +1,6 @@
 
 import {local as storage} from './storage.js';  // Import Storage.js for persistence
+import { info as LogInfo, error as LogError, warn as LogWarning } from "./logger.js";
 
 // Constant key for storing the state in localStorage
 const LOCAL_STORAGE_KEY = 'appState';
@@ -9,7 +10,8 @@ const stateManager = {
     state: {},  // Holds the current state of the application
     subscribers: {},  // Holds the subscribers for each key
     actions: {},  // Holds registered actions
-    action:{}
+    action:{},
+    sticky:false 
 };
 
 /**
@@ -17,31 +19,49 @@ const stateManager = {
  * It also loads the state from localStorage if available or uses the provided initial state.
  * @param {Object} initialState - The initial state to be set if localStorage has no saved state.
  */
-export function init(initialState = {}) {
+export function init(initialState = {},options={}) {
     // Retrieve saved state from localStorage, merging with initialState if necessary
     const savedState = { ...(storage.get(LOCAL_STORAGE_KEY) || {}), ...initialState };
     Object.keys(savedState).forEach(key => set(key, savedState[key], false));  // Set each state key
+    stateManager.sticky = !!options.sticky
 }
 
 /**
- * Retrieves the current state or the state of a specific key.
- * @param {string} key - The key whose state to retrieve (optional).
- * @returns {any} - The value of the state or specific key's value.
+ * Updates the state by setting a new value for a specific key.
+ * 
+ * - Stores the new value in the state.
+ * - Notifies all subscribers unless `silent` is `true`.
+ * - Persists the state if `sticky` mode is enabled.
+ * 
+ * @param {string} key - The key to update in the state.
+ * @param {any} value - The new value to assign to the key.
+ * @param {boolean} [silent=false] - If `true`, suppresses notifications to subscribers.
  */
-export function get(key) {
-    return stateManager.state[key];  // Return the state value for the given key
-}
-
-/**
- * Sets a new value for a specific key in the state.
- * It also generates a getter for the updated key and notifies any subscribers.
- * @param {string} key - The key to update.
- * @param {any} value - The new value to set.
- */
-export function set(key, value, notify = true) {
+export function set(key, value, silent = !true) {
     stateManager.state[key] = value;  // Update the state with the new value
     // Notify all subscribers of the updated state for the key
-    if (notify) stateManager.notify(key);
+    if (!silent) notify(key);
+    if (stateManager.sticky) persist();
+}
+
+
+/**
+ * Retrieves the current state value for a given key or returns a default value if not found.
+ * Ensures deep copies of objects and arrays to prevent mutations of the original state.
+ *
+ * @param {string} key - The key whose state value needs to be retrieved.
+ * @param {any} defaults - The default value to return if the key is not found in the state.
+ * @returns {any} - A deep-copied value associated with the key or the default value.
+ */
+export function get(key, defaults) {
+    return key ? (() => {
+        let value = stateManager.state[key] ?? defaults;
+        // Ensure deep copy for objects and arrays
+        if (typeof value === "object" && value !== null) {
+            return structuredClone ? structuredClone(value) : JSON.parse(JSON.stringify(value));
+        }
+        return value;
+    })() : defaults;
 }
 
 /**
@@ -58,7 +78,7 @@ export function clear() {
     storage.delete(LOCAL_STORAGE_KEY);  // Remove persisted state from localStorage
     stateManager.state = {};  // Reset the internal state object
     stateManager.subscribers = {};  // Clear any existing subscribers
-    console.log('State has been cleared and localStorage removed.');
+    LogInfo('State has been cleared and localStorage removed.');
 }
 
 /**
@@ -88,6 +108,20 @@ export function notify(key) {
 }
 
 /**
+ * Sets the stickiness of the state.
+ * 
+ * - When `sticky` is `true`, calling `persist()` will save the state across page reloads.
+ * - When `sticky` is `false`, the state will reset on refresh unless `persist()` is explicitly called.
+ * - This prevents redundant calls to `persist()` by ensuring it runs only when needed.
+ * 
+ * @param {boolean} [sticky=true] - Whether to enable automatic persistence.
+ */
+export function setStickyness(sticky = true) {
+    stateManager.sticky = sticky;
+}
+
+
+/**
  * Dispatches an action to modify the state.
  * Actions can update state, trigger async operations, or perform other side effects.
  * @param {string} action - The action type.
@@ -97,7 +131,7 @@ export function dispatch(action, payload) {
     if (stateManager.actions[action]) {
         stateManager.actions[action](payload);  // Execute the action if it exists
     } else {
-        console.error(`Action ${action} not found`);  // Log an error if the action does not exist
+        LogError(`Action ${action} not found`);  // Log an error if the action does not exist
     }
 }
 
@@ -109,12 +143,12 @@ export function dispatch(action, payload) {
  */
 stateManager.action.register =  function (actionName, actionFunction) {
     if (typeof actionFunction !== 'function') {
-        console.error('The action function must be of type function.');
+        LogError('The action function must be of type function.');
         return;
     }
 
     if (typeof actionName !== 'string') {
-        console.error('The action name must be of type string.');
+        LogError('The action name must be of type string.');
         return;
     }
 
@@ -131,7 +165,7 @@ stateManager.actions.fetch = async function({ key, url }) {
         const data = await response.json();  // Parse the response as JSON
         set(key, data);  // Update the state with the fetched data
     } catch (error) {
-        console.error('Error fetching data:', error);  // Log an error if fetching fails
+        LogError('Error fetching data:', error);  // Log an error if fetching fails
     }
 };
 

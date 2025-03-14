@@ -2,10 +2,14 @@ import Mustache from "mustache";
 import STATES from "../utils/states.js";
 import { translate } from "./translator.js";
 import { isObject } from "./helpers.js";
+import * as Events from "./events.js";
+import { info as LogInfo, error as LogError, warn as LogWarning } from "./logger.js";
+
+
 
 // Configuration object
 const Template = {
-    prefix: `${window.location.origin}/templates`, // Base URL for templates
+    baseURL: `${window.location.origin}/templates`, // Base URL for templates
     caches: new Map(),              // Cache storage for templates
     extension: '.html',             // File extension for templates
     container: document.body,
@@ -14,9 +18,9 @@ const Template = {
     config: {}
 };
 
-// Set the Prefix of domain
-export function setPrefix(prefix) {
-    Template.prefix = prefix;
+// Set the baseURL of domain
+export function setBaseURL(baseURL) {
+    Template.baseURL = baseURL;
 }
 
 // export engine 
@@ -35,7 +39,7 @@ export async function get(url) {
         }
         return await response.text();  // Return raw template string
     } catch (error) {
-        console.error("Error fetching template:", error);
+        LogError("Error fetching template:", error);
         return ''; // Return an empty string if fetch fails
     }
 }
@@ -47,17 +51,17 @@ export async function get(url) {
 export async function preload(paths) {
     for (let path of paths) {
         if (!Template.caches.has(path)) {
-            const fullPath = `${Template.prefix}${path}${Template.extension}`;
+            const fullPath = `${Template.baseURL}${path}${Template.extension}`;
             try {
                 Template.caches.set(path, STATES.FETCHING);
                 const template = await get(fullPath);
                 Template.caches.set(path, template);  // Add template to cache
             } catch (error) {
                 Template.caches.delete(path);
-                console.error(`Failed to preload template at path ${path}:`, error);
+                LogError(`Failed to preload template at path ${path}:`, error);
             }
         } else {
-            console.log(`Template ${path} is Already Loaded`);
+            LogInfo(`Template ${path} is Already Loaded`);
         }
     }
 }
@@ -85,14 +89,14 @@ export function deleteFromCache(path) {
  * @param {string} path - The path of the template to refresh.
  */
 export async function refreshCache(path) {
-    const fullPath = `${Template.prefix}${path}${Template.extension}`;
+    const fullPath = `${Template.baseURL}${path}${Template.extension}`;
     try {
         const newTemplate = await get(fullPath);
         if (newTemplate) {
             addToCache(path, newTemplate);  // Update cache with new template
         }
     } catch (error) {
-        console.error(`Error refreshing template at ${path}:`, error);
+        LogError(`Error refreshing template at ${path}:`, error);
     }
 }
 
@@ -187,14 +191,29 @@ export async function render(path, data, partials = {}, tags) {
         // Fetch the translated HTML
         const html = await getHTML(path, data, processedPartials, tags);
 
-        // Inject the HTML into the container
-        Template.container.innerHTML = html;
+        let template = path.replaceAll('/', '-')
+        let templateClass = `flxy-template-${template}`.replaceAll("--", "-");
+        // Create a new container element
+        let templateContainer = document.createElement('div'); 
+        templateContainer.classList.add(templateClass);
+        templateContainer.innerHTML = html;
+        
+        // Ensure the container exists
+        if (Template.container) {
+            // Replace existing content
+            Template.container.innerHTML = '';
+            Template.container.appendChild(templateContainer);
+        
+            // Remove loading state and add template-specific class
+            Template.container.classList.remove('loading');
+        } else {
+            LogError('Template.container is not defined');
+        }
+        
 
-        // Remove loading state and add template-specific class
-        Template.container.classList.remove('loading');
-        Template.container.classList.add(`template${path.replaceAll('/', '-')}`);
+        Events.init(templateContainer)
     } catch (error) {
-        console.error(`Failed to render template for path "${path}":`, error);
+        LogError(`Failed to render template for path "${path}":`, error);
     }
 }
 

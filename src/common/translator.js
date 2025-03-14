@@ -1,15 +1,16 @@
 import STATES from "../utils/states.js";
+import { info as LogInfo, error as LogError, warn as LogWarning } from "./logger.js";
 
 const Translator = {
     currentLang: null, // Default language
     translations: {},  // Store loaded translations
-    prefix: `${window.location.origin}/translations`, // Base URL for Templates
+    baseURL: `${window.location.origin}/translations`, // Base URL for Templates
 };
 
 
-// Set the Prefix of domain
-export function setPrefix (prefix){
-    Translator.prefix = prefix;
+// Set the baseURL of domain
+export function setBaseURL (baseURL){
+    Translator.baseURL = baseURL;
 }
 
 /**
@@ -25,7 +26,7 @@ export async function load(lang, callback = null) {
 
     Translator.translations[lang] = STATES.FETCHING; // Mark as fetching
     try {
-        const response = await fetch(`${Translator.prefix}/${lang}.json`);
+        const response = await fetch(`${Translator.baseURL}/${lang}.json`);
         if (!response.ok) {
             throw new Error(`Language file ${lang} not found`);
         }
@@ -37,7 +38,7 @@ export async function load(lang, callback = null) {
 
     } catch (err) {
         Translator.translations[lang] = STATES.NULL; // Mark as failed
-        console.error(err);
+        LogError(err);
         // throw err;
     }
 
@@ -102,7 +103,7 @@ export function replacePlaceholders(str, params) {
 export async function translate(str, params = {}) {
 
     if(!Translator.currentLang){
-        console.warn('No language set!, Please set a language using Translator.init(lang) before calling translate()');
+        LogWarning('No language set!, Please set a language using Translator.init(lang) before calling translate()');
         return str;
     };
 
@@ -114,14 +115,14 @@ export async function translate(str, params = {}) {
 
     if (isMissing || isFetching) {
         try {
-            console.warn(`isMissing | isFetching`, isFetching,isMissing);
+            LogWarning(`isMissing | isFetching`, isFetching,isMissing);
             return await load(Translator.currentLang, processString);
         } catch (error) {
-            console.error(`Translation loading failed for language: ${Translator.currentLang}`, error);
+            LogError(`Translation loading failed for language: ${Translator.currentLang}`, error);
             return str; // Return the original string as a fallback
         }
     } else {
-        console.log('Alread Loaded', Translator.currentLang);
+        LogInfo('Alread Loaded', Translator.currentLang);
     }
 
     return processString();

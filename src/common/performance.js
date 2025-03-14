@@ -1,4 +1,5 @@
 import { emit } from "./emitter.js";
+import { info as LogInfo } from "./logger.js";
 
 
 /**
@@ -56,7 +57,7 @@ export function end(tracker) {
  * @param {object} log - The log to report.
  */
 export function report(log) {
-    console.info(`[Performance] ${log.tag}: ${log.duration.toFixed(2)}ms`, log.details);
+    LogInfo(`[Performance] ${log.tag}: ${log.duration.toFixed(2)}ms`, log.details);
     emit("performance:log", log); // Emit performance log event
 }
 

@@ -8,6 +8,9 @@ import * as Translator from "./common/translator.js";
 import * as Device from "./common/device.js";
 import * as Events from "./common/events.js";
 import * as Location from "./common/location.js";
+import * as App from "./common/app.js";
+import * as Module from "./common/module.js";
+import * as Logger from "./common/logger.js";
 
 // Define the main Flxy object
 const Flxy = {};
@@ -44,12 +47,11 @@ const init = (callback) => {
 
 // Create the container as soon as the body is available
 init(() => {
-    Flxy.container = createContainer();
-    Template.setContainer(Flxy.container);
-    Events.init(Flxy.container)
+    App.setContainer(createContainer());
 });
 
 const modules = ({
+    app: App,
     template: Template,
     translator: Translator,
     router: Router,
@@ -57,10 +59,12 @@ const modules = ({
     emitter: Emitter,
     device: Device,
     states: States,
-    events:Events,
-    location:Location
+    events: Events,
+    location: Location,
+    module:Module,
+    logger:Logger
 });
 
-Object.keys(modules).forEach((module) => Flxy[module] = {...modules[module]});
+Object.keys(modules).forEach((module) => Flxy[module] = { ...modules[module] });
 
 export default Flxy;

@@ -1,4 +1,7 @@
 import STATES from "../utils/states.js";
+import { loadModule } from "./module.js";
+import { info as LogInfo, error as LogError, warn as LogWarning } from "./logger.js";
+
 
 
 /**
@@ -11,7 +14,7 @@ const ErrorHandler = {
    * @param {string} message - A detailed description of the error.
    */
   handle(errorCode, message) {
-    console.error(`Error ${errorCode}: ${message}`);
+    LogError(`Error ${errorCode}: ${message}`);
     // Add custom fallback behavior (e.g., redirect to a specific error page)
   },
 };
@@ -64,7 +67,7 @@ export const init = () => {
  * @param {function} handler - The function to execute when the route is matched.
  * @param {Array|function} [middlewares=[]] - Middleware functions to execute before the handler.
  * @example
- * Router.register('/home', (ctx) => console.log('Home'), [authMiddleware]);
+ * Router.register('/home', (ctx) => LogInfo('Home'), [authMiddleware]);
  */
 export const register = (routeName, handler, middlewares = []) => {
   middlewares = typeof middlewares === "function" ? [middlewares] : middlewares;
@@ -93,7 +96,7 @@ export const handle = async (callback = () => { }) => {
   if (!query.routeName) {
     Router.navigating = false;
     callback({ status: 404 })
-    console.log("No route");
+    LogInfo("No route");
     return;
   }
 
@@ -127,10 +130,15 @@ export const handle = async (callback = () => { }) => {
     if (!middlewareResults.every(result => result)) return error(400);
 
     await executeHandler(handler, context);
+    try {
+      await loadModule(Router.currentPath, context);
+    } catch (e) {
+      error(e.message.includes("Failed to fetch dynamically") ? 404 : 400, e)
+    }
     setState(routeName, STATES.SUCCESS);
-  } catch (error) {
-    console.error("Error:", error);
-    error(500);
+  } catch (e) {
+    LogError("Error:", e);
+    error(500, e);
   }
 
   notifyListeners(context);
@@ -142,8 +150,8 @@ export const handle = async (callback = () => { }) => {
  * Handles errors during route handling and logs them.
  * @param {number} errorCode - The HTTP status code for the error.
  */
-export const error = (errorCode) => {
-  ErrorHandler.handle(errorCode, `Route handling failed for ${Router.currentPath}`);
+export const error = (errorCode, message) => {
+  ErrorHandler.handle(errorCode, message || `Route handling failed for ${Router.currentPath}`);
   Router.navigating = false;
 };
 
@@ -159,7 +167,7 @@ export const executeMiddlewares = async (middlewares, context) => {
       try {
         return await middleware(context);
       } catch (error) {
-        console.error(String(middleware.name), error);
+        LogError(String(middleware.name), error);
         return false;
       }
     })
@@ -175,17 +183,17 @@ export const executeMiddlewares = async (middlewares, context) => {
  */
 export const setState = (routeName, state) => {
   Router.routeStates[routeName] = state;
-  console.log(`Route ${routeName} is in state: ${state}`);
+  LogInfo(`Route ${routeName} is in state: ${state}`);
 };
 
 /**
  * Executes the handler function for a route.
  * @param {function} handler - The handler function to execute.
  * @param {Object} context - The context passed to the handler.
- * @example Router.executeHandler((ctx) => console.log(ctx), {});
+ * @example Router.executeHandler((ctx) => LogInfo(ctx), {});
  */
 export const executeHandler = async (handler, context) => {
-  console.log("Loading...", context);
+  LogInfo("Loading...", context);
   await handler(context);
 };
 
@@ -197,7 +205,7 @@ export const executeHandler = async (handler, context) => {
  */
 export const navigate = (path, query = {}, _blank = false) => {
   if (Router.navigating) {
-    return console.log(`Busy`);
+    return LogInfo(`Busy`);
   }
 
   // Parse the input path to extract the base path and query parameters
@@ -208,7 +216,7 @@ export const navigate = (path, query = {}, _blank = false) => {
   // Merge the extracted query parameters from the path with the provided query object
   const mergedQuery = { ...pathQuery, ...query };
 
-  console.log('mergedQuery', mergedQuery, path, basePath)
+  LogInfo('mergedQuery', mergedQuery, path, basePath)
   // Add the route property to the query
   mergedQuery.route = basePath;
 
@@ -231,7 +239,7 @@ export const navigate = (path, query = {}, _blank = false) => {
 /**
  * Subscribes a callback function to route change events.
  * @param {function} callback - The callback function to execute when the route changes.
- * @example Router.onChange((route) => console.log('Route changed:', route));
+ * @example Router.onChange((route) => LogInfo('Route changed:', route));
  */
 export const onChange = (callback) => {
   if (typeof callback === "function") {
@@ -294,7 +302,7 @@ export const matchDynamicRoute = (routeName) => {
  */
 export const refresh = (newParams = getCurrentQuery()) => {
   if (newParams.route) {
-    console.warn(`Please use navigate to move to a new route`);
+    LogWarning(`Please use navigate to move to a new route`);
   }
   newParams.route = Router.currentPath;
   navigate(Router.currentPath, newParams);
